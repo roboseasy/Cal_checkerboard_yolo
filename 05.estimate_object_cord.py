@@ -1,5 +1,5 @@
-"""07.estimate_object_cord.py
-Same two-window layout as 06.ar_final.py, plus YOLO object detection.
+"""05.estimate_object_cord.py
+Same two-window layout as 04.ar_final.py, plus YOLO object detection.
 
 For every detected object, a dot is drawn at the bounding-box center:
   - on the LEFT camera view (yellow dot)

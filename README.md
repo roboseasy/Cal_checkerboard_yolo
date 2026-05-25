@@ -29,7 +29,7 @@ pip install -r requirements.txt
 
 ---
 
-## 실행 순서 (01 → 07)
+## 실행 순서 (01 → 05)
 
 ### 1) `01.calibrate.py` — 카메라 내부 파라미터 캘리브레이션 (1회)
 ```bash
@@ -50,7 +50,7 @@ python 02.ar_axes.py
 - 색: 밑면=초록(X), 기둥=파랑(Y), 윗면=빨강(Z)
 - `q` 종료
 
-### 3) EE로 보드 코너 4점 측정 → `config.yaml` 직접 편집
+### 3) EE로 보드 코너 측정 → `config.yaml` 직접 편집
 EE(엔드 이펙터)로 보드 위 정해진 외곽 격자점을 찍어 로봇 베이스 좌표를 기록합니다.
 `config.yaml` 의 `robot_calib.touch_points` 리스트에 항목 추가:
 
@@ -64,10 +64,10 @@ robot_calib:
     - {i: 13, j: 1,  x: ..., y: ..., z: ...}   # 우하단 검은칸 좌상
     - {i: 13, j: 4,  x: ..., y: ..., z: ...}   # 우하단에서 위 4번째 흰칸 좌상
 ```
-
-좋은 측정 가이드:
-- X(긴 변) 방향과 Y(짧은 변) 방향 모두에서 충분한 베이스라인을 확보하도록 분포
-- 최소 2점, 3점 이상 권장 (잔차 RMS 산출용)
+- 외곽 격자 인덱스: `i = 0..14` (X 방향), `j = 0..10` (Y 방향)
+- 단위는 m
+- X(긴 변)·Y(짧은 변) **양방향 모두에서 베이스라인을 확보**하도록 분포 (모든 점이 같은 행/열에 몰리면 안 됨)
+- 최소 2점, 잔차 RMS 확인을 위해 3점 이상 권장
 
 ### 4) `03.robot_calib.py` — 보드 ↔ 로봇 2D 강체 변환 추정
 ```bash
@@ -78,36 +78,23 @@ python 03.robot_calib.py show   # 풀어보기만 (저장 X)
 - 점별 잔차와 전체 RMS 출력 → 측정 품질 확인
 - 결과: `calib/robot_board.npz` (`theta`, `t`, `R`, `z_board`, …)
 
-### 5) `04.ar_grid.py` — 카메라 원근 뷰 + 격자별 로봇 좌표 라벨
+### 5) `04.ar_final.py` — 두 창 동시 (포즈 1회 고정)
 ```bash
-python 04.ar_grid.py
-```
-- 카메라 영상에 15×11 외곽 격자 교차점 모두에 점 + `(x, y)` 라벨 표시
-- 라벨 단위/소수점/글자 크기/표시 간격은 `config.yaml`의 `display.*` 로 조절
-
-### 6) `05.ar_topdown.py` — 보드를 위에서 본 평면 뷰
-```bash
-python 05.ar_topdown.py
-```
-- `getPerspectiveTransform` + `warpPerspective` 로 보드 영역만 직사각형으로 펴서 표시
-- 캔버스 해상도는 파일 상단 `PIXELS_PER_MM = 6` 로 조절 (1680×1200 px)
-
-### 7) `06.ar_final.py` — 두 창 동시 (포즈 1회 고정)
-```bash
-python 06.ar_final.py
+python 04.ar_final.py
 ```
 - 좌측 창 `ar_axes` = 카메라 라이브 + 직육면체
-- 우측 창 `ar_topdown` = top뷰 라이브 + 격자 좌표 라벨
-- **처음 `LOCK_FRAMES`(기본 10)** 프레임 동안 보드 포즈를 측정해 평균낸 뒤 **고정**
-- 이후로는 detection/solvePnP를 더 이상 돌리지 않음 — 직육면체와 라벨 위치, 호모그래피 모두 고정
-- 좌측은 라이브 카메라 위에 고정 직육면체, 우측은 라이브 warp + 고정 라벨
+- 우측 창 `ar_topdown` = top뷰 라이브 + 격자 교차점마다 로봇 `(x, y)` 라벨
+- **처음 `LOCK_FRAMES`(기본 10) 프레임** 동안 보드 포즈를 측정해 평균낸 뒤 **고정**
+- 이후 detection/solvePnP를 더 이상 돌리지 않음 — 직육면체 픽셀 좌표, 호모그래피, 격자 라벨 위치 모두 고정
+- 좌측은 **라이브 카메라 + 고정 직육면체**, 우측은 **라이브 warp + 고정 라벨**
 - 키: `q` 종료, `r` 재측정
+- 캔버스 해상도는 파일 상단 `PIXELS_PER_MM = 6` 로 조절
 
-### 8) `07.estimate_object_cord.py` — YOLO 객체 검출 + 로봇 좌표 추정
+### 6) `05.estimate_object_cord.py` — YOLO 객체 검출 + 로봇 좌표 추정
 ```bash
-python 07.estimate_object_cord.py
+python 05.estimate_object_cord.py
 ```
-- 06.ar_final.py 와 동일한 두 창 + 매 프레임 YOLO 추론
+- 04.ar_final.py 와 동일한 두 창 + 매 프레임 YOLO 추론
 - 가중치: 파일 상단 `YOLO_WEIGHTS` 경로 (기본 `~/workspace/yolo/outputs/runs/green_cube_v1/weights/best.pt`)
 - 검출된 객체마다:
   - 좌측 카메라 뷰의 **바운딩 박스 중심**에 점 + `클래스 (x, y)` 라벨
@@ -176,10 +163,8 @@ checkerboard/
 ├── 01.calibrate.py
 ├── 02.ar_axes.py
 ├── 03.robot_calib.py
-├── 04.ar_grid.py
-├── 05.ar_topdown.py
-├── 06.ar_final.py
-├── 07.estimate_object_cord.py
+├── 04.ar_final.py
+├── 05.estimate_object_cord.py
 └── calib/
     ├── camera_params.npz      # 01 결과
     └── robot_board.npz        # 03 결과
@@ -193,4 +178,4 @@ checkerboard/
 - **보드 평면성**: 보드가 책상 위에 평평히 놓여 있어야 z=상수 가정이 성립합니다.
 - **z축 정렬**: 로봇 z축과 보드 법선이 평행하다고 가정. 책상이 비스듬하면 오차 증가.
 - **EE 측정 오차**: 4~5 mm 수준의 잔차는 흔합니다 (`03.robot_calib.py` 의 RMS 출력으로 확인).
-- **YOLO 가중치**: 07 실행 전 `YOLO_WEIGHTS` 경로의 모델이 존재해야 합니다.
+- **YOLO 가중치**: 05 실행 전 `YOLO_WEIGHTS` 경로의 모델이 존재해야 합니다.
