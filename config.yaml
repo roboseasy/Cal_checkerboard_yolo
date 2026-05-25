@@ -1,0 +1,42 @@
+board:
+  pattern_size: [13, 9]      # 내부 코너 (cols, rows)
+  square_size_mm: 20.0
+  axis_length_mm: 60.0
+  box_height_mm: 120.0        # 직육면체 높이 (보드 위로)
+
+# BGR
+colors:
+  x: [0, 255, 0]
+  y: [255, 0, 0]
+  z: [0, 0, 255]
+
+camera:
+  index: 4
+  width: 1280
+  height: 720
+  fps: 30
+  fourcc: MJPG               # 1280x720@30fps requires MJPG on this device
+
+calib:
+  file: calib/camera_params.npz
+  target_shots: 20
+
+# 보드-로봇 매핑
+# B 프레임: 원점 = 보드 좌하단 외곽 코너, +X = 가로(긴 변), +Y = 세로(짧은 변)
+# 외곽 격자 인덱스: i = 0..14 (X 방향), j = 0..10 (Y 방향)
+# 측정 단위는 m
+robot_calib:
+  file: calib/robot_board.npz
+  z_board_m: 0.0804         # 보드 표면 높이 (z=상수 가정)
+  touch_points:
+    - {i: 0,  j: 0, x:  0.2483, y:  0.0833, z: 0.0804}  # 좌하단 외곽 코너
+    - {i: 1,  j: 1, x:  0.2627, y:  0.1072, z: 0.0791}  # 좌하단 흰칸 우상
+    - {i: 1,  j: 4, x:  0.3132, y:  0.1126, z: 0.0788}  # 좌하단에서 위 4번째 검은칸 우상
+    - {i: 13, j: 1, x:  0.2443, y: -0.1167, z: 0.0669}  # 우하단 검은칸 좌상
+    - {i: 13, j: 4, x:  0.3035, y: -0.1105, z: 0.0735}  # 우하단에서 위 4번째 흰칸 좌상
+
+display:
+  label_stride: 1             # 1=모든 점, 2=한 칸 걸러
+  label_unit: m               # "m" | "mm"
+  label_decimals: 3
+  label_font_scale: 0.35
