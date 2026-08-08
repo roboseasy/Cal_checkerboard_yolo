@@ -23,6 +23,11 @@
 
 ## 설치
 ```bash
+conda create -n yolo python=3.12 -y
+
+conda activate yolo
+
+
 pip install -r requirements.txt
 ```
 - `opencv-python`, `numpy`, `PyYAML`, `ultralytics` (YOLO)
