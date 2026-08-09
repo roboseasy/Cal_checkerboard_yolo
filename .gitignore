@@ -19,6 +19,12 @@ env/
 weights/
 *.pt
 
+# 03a.touch_points.py 가 남기는 config.yaml 백업
+*.bak
+
+# 02b.board_index.py 스냅샷
+calib/**/board_index.png
+
 # OS
 .DS_Store
 Thumbs.db
