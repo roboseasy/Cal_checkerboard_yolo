@@ -14,13 +14,8 @@ Usage:
 import os
 import sys
 import numpy as np
-import yaml
 
-
-def load_config():
-    here = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(here, "config.yaml"), "r") as f:
-        return yaml.safe_load(f)
+from config_util import load_config, resolve_path
 
 
 def procrustes_2d(P_B, P_R):
@@ -49,12 +44,18 @@ def procrustes_2d(P_B, P_R):
 def main():
     cfg = load_config()
     s = float(cfg["board"]["square_size_mm"]) * 1e-3  # m
-    pts = cfg["robot_calib"]["touch_points"]
-    out_file = cfg["robot_calib"]["file"]
+    pts = cfg["robot_calib"]["touch_points"] or []
+    out_file = resolve_path(cfg["robot_calib"]["file"])
     z_board = float(cfg["robot_calib"]["z_board_m"])
 
     if len(pts) < 2:
-        print("Need at least 2 touch_points.", file=sys.stderr)
+        print("Need at least 2 robot_calib.touch_points in config.yaml "
+              f"(found {len(pts)}).\n"
+              "  Jog the LeKiwi arm so the EE touches a known outer grid point,\n"
+              "  read the end-effector (x, y, z) in metres, and add one entry per\n"
+              "  point. Spread them over both i (0..14) and j (0..10) — points that\n"
+              "  all share a row or a column give a degenerate fit.",
+              file=sys.stderr)
         sys.exit(1)
 
     P_B = np.array([[p["i"] * s, p["j"] * s] for p in pts], dtype=np.float64)

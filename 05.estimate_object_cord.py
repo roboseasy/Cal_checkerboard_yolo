@@ -14,24 +14,18 @@ import sys
 import time
 import numpy as np
 import cv2
-import yaml
 from ultralytics import YOLO
+
+from config_util import load_config, resolve_path
+from frame_source import FrameSourceError, open_frame_source
 
 
 PIXELS_PER_MM = 6
 LOCK_FRAMES   = 10
 
-# YOLO settings (same weights as /home/khw/workspace/yolo/04.inference.py)
-YOLO_WEIGHTS = "/home/khw/workspace/yolo/outputs/runs/green_cube_v1/weights/best.pt"
-YOLO_CONF    = 0.25
-YOLO_IOU     = 0.45
-YOLO_DEVICE  = 0
-
-
-def load_config():
-    here = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(here, "config.yaml"), "r") as f:
-        return yaml.safe_load(f)
+# Overrides yolo.weights from config.yaml, for machines that keep the model
+# somewhere else.
+WEIGHTS_ENV = "ROBOSEASY_YOLO_WEIGHTS"
 
 
 def build_inner_object_points(pattern_size, square_size_mm):
@@ -76,10 +70,16 @@ def main():
     color_x = tuple(cfg["colors"]["x"])
     color_y = tuple(cfg["colors"]["y"])
     color_z = tuple(cfg["colors"]["z"])
-    cam = cfg["camera"]
-    camera_file = cfg["calib"]["file"]
-    rb_file = cfg["robot_calib"]["file"]
+    camera_file = resolve_path(cfg["calib"]["file"])
+    rb_file = resolve_path(cfg["robot_calib"]["file"])
     z_board = float(cfg["robot_calib"]["z_board_m"])
+
+    yolo_cfg = cfg.get("yolo", {})
+    weights_file = resolve_path(
+        os.environ.get(WEIGHTS_ENV) or yolo_cfg.get("weights", "weights/best.pt"))
+    yolo_conf = float(yolo_cfg.get("conf", 0.25))
+    yolo_iou = float(yolo_cfg.get("iou", 0.45))
+    yolo_device = yolo_cfg.get("device", 0)
 
     disp = cfg.get("display", {})
     stride = int(disp.get("label_stride", 1))
@@ -91,8 +91,12 @@ def main():
         print(f"Missing {camera_file}. Run 01.calibrate.py first.", file=sys.stderr); sys.exit(1)
     if not os.path.exists(rb_file):
         print(f"Missing {rb_file}. Run 03.robot_calib.py first.", file=sys.stderr); sys.exit(1)
-    if not os.path.exists(YOLO_WEIGHTS):
-        print(f"Missing YOLO weights: {YOLO_WEIGHTS}", file=sys.stderr); sys.exit(1)
+    if not os.path.exists(weights_file):
+        print(f"Missing YOLO weights: {weights_file}\n"
+              "  Point yolo.weights in config.yaml at your model — a path relative\n"
+              "  to this repo, or an absolute one — or export "
+              f"{WEIGHTS_ENV}=/path/to/best.pt",
+              file=sys.stderr); sys.exit(1)
 
     cam_data = np.load(camera_file)
     K, dist = cam_data["K"], cam_data["dist"]
@@ -103,8 +107,8 @@ def main():
     print(f"[07] camera RMS={float(cam_data['rms']):.3f}px  "
           f"theta={np.degrees(theta):+.2f}deg")
 
-    print(f"[07] loading YOLO weights: {YOLO_WEIGHTS}")
-    model = YOLO(YOLO_WEIGHTS)
+    print(f"[07] loading YOLO weights: {weights_file}")
+    model = YOLO(weights_file)
     class_names = model.names
 
     objp = build_inner_object_points((cols, rows), sq_mm)
@@ -145,13 +149,11 @@ def main():
             grid_uv.append((i, j, u, v))
             grid_robot.append((r_xy[0], r_xy[1], z_board))
 
-    cap = cv2.VideoCapture(int(cam["index"]))
-    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*str(cam["fourcc"])))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, int(cam["width"]))
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, int(cam["height"]))
-    cap.set(cv2.CAP_PROP_FPS, int(cam["fps"]))
-    if not cap.isOpened():
-        print("Cannot open webcam.", file=sys.stderr); sys.exit(1)
+    try:
+        cap = open_frame_source(cfg)
+    except FrameSourceError as e:
+        print(f"Cannot open the camera.\n{e}", file=sys.stderr); sys.exit(1)
+    print(f"[07] source: {cap.describe()}")
 
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 1e-3)
     find_flags = (cv2.CALIB_CB_ADAPTIVE_THRESH
@@ -196,8 +198,8 @@ def main():
 
         # YOLO inference on the clean frame (before any overlay).
         yolo_res = model.predict(
-            frame, conf=YOLO_CONF, iou=YOLO_IOU,
-            device=YOLO_DEVICE, verbose=False,
+            frame, conf=yolo_conf, iou=yolo_iou,
+            device=yolo_device, verbose=False,
         )[0]
         objects = []   # list of dict: cx, cy, cls, conf
         if yolo_res.boxes is not None and len(yolo_res.boxes):

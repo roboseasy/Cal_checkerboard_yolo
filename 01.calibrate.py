@@ -8,13 +8,9 @@ import os
 import sys
 import numpy as np
 import cv2
-import yaml
 
-
-def load_config():
-    here = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(here, "config.yaml"), "r") as f:
-        return yaml.safe_load(f)
+from config_util import load_config, resolve_path
+from frame_source import FrameSourceError, open_frame_source
 
 
 def build_object_points(pattern_size, square_size_mm):
@@ -29,8 +25,7 @@ def main():
     cfg = load_config()
     pattern_size = tuple(cfg["board"]["pattern_size"])
     square_size_mm = float(cfg["board"]["square_size_mm"])
-    cam = cfg["camera"]
-    calib_file = cfg["calib"]["file"]
+    calib_file = resolve_path(cfg["calib"]["file"])
     target_shots = int(cfg["calib"]["target_shots"])
 
     objp = build_object_points(pattern_size, square_size_mm)
@@ -38,14 +33,12 @@ def main():
     img_points = []
     image_size = None
 
-    cap = cv2.VideoCapture(int(cam["index"]))
-    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*str(cam["fourcc"])))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, int(cam["width"]))
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, int(cam["height"]))
-    cap.set(cv2.CAP_PROP_FPS, int(cam["fps"]))
-    if not cap.isOpened():
-        print("Cannot open webcam.", file=sys.stderr)
+    try:
+        cap = open_frame_source(cfg)
+    except FrameSourceError as e:
+        print(f"Cannot open the camera.\n{e}", file=sys.stderr)
         sys.exit(1)
+    print(f"[calibrate] source: {cap.describe()}")
 
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 1e-3)
     find_flags = (

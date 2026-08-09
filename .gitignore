@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+env/
+
+# 테스트/캐시
+.pytest_cache/
+.ipynb_checkpoints/
+
+# 모델 가중치 (용량이 커서 저장소에 올리지 않는다)
+weights/
+*.pt
+
+# OS
+.DS_Store
+Thumbs.db

@@ -11,16 +11,12 @@ import sys
 import time
 import numpy as np
 import cv2
-import yaml
+
+from config_util import load_config, resolve_path
+from frame_source import FrameSourceError, open_frame_source
 
 PIXELS_PER_MM = 6        # top-down canvas resolution
 LOCK_FRAMES   = 10       # successful detections to average before locking the pose
-
-
-def load_config():
-    here = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(here, "config.yaml"), "r") as f:
-        return yaml.safe_load(f)
 
 
 def build_inner_object_points(pattern_size, square_size_mm):
@@ -65,9 +61,8 @@ def main():
     color_x = tuple(cfg["colors"]["x"])
     color_y = tuple(cfg["colors"]["y"])
     color_z = tuple(cfg["colors"]["z"])
-    cam = cfg["camera"]
-    camera_file = cfg["calib"]["file"]
-    rb_file = cfg["robot_calib"]["file"]
+    camera_file = resolve_path(cfg["calib"]["file"])
+    rb_file = resolve_path(cfg["robot_calib"]["file"])
     z_board = float(cfg["robot_calib"]["z_board_m"])
 
     disp = cfg.get("display", {})
@@ -130,13 +125,11 @@ def main():
             grid_uv.append((i, j, u, v))
             grid_robot.append((r_xy[0], r_xy[1], z_board))
 
-    cap = cv2.VideoCapture(int(cam["index"]))
-    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*str(cam["fourcc"])))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, int(cam["width"]))
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, int(cam["height"]))
-    cap.set(cv2.CAP_PROP_FPS, int(cam["fps"]))
-    if not cap.isOpened():
-        print("Cannot open webcam.", file=sys.stderr); sys.exit(1)
+    try:
+        cap = open_frame_source(cfg)
+    except FrameSourceError as e:
+        print(f"Cannot open the camera.\n{e}", file=sys.stderr); sys.exit(1)
+    print(f"[ar_final] source: {cap.describe()}")
 
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 1e-3)
     find_flags = (cv2.CALIB_CB_ADAPTIVE_THRESH
