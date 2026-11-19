@@ -8,13 +8,9 @@ import sys
 import time
 import numpy as np
 import cv2
-import yaml
 
-
-def load_config():
-    here = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(here, "config.yaml"), "r") as f:
-        return yaml.safe_load(f)
+from config_util import load_config, resolve_path
+from frame_source import FrameSourceError, open_frame_source
 
 
 def build_object_points(pattern_size, square_size_mm):
@@ -68,8 +64,7 @@ def main():
     color_x = tuple(cfg["colors"]["x"])
     color_y = tuple(cfg["colors"]["y"])
     color_z = tuple(cfg["colors"]["z"])
-    cam = cfg["camera"]
-    calib_file = cfg["calib"]["file"]
+    calib_file = resolve_path(cfg["calib"]["file"])
 
     if not os.path.exists(calib_file):
         print(f"Missing {calib_file}. Run 01.calibrate.py first.", file=sys.stderr)
@@ -82,14 +77,12 @@ def main():
     objp = build_object_points(pattern_size, square_size_mm)
     box_3d = build_box_points(pattern_size, square_size_mm, box_height_mm)
 
-    cap = cv2.VideoCapture(int(cam["index"]))
-    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*str(cam["fourcc"])))
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, int(cam["width"]))
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, int(cam["height"]))
-    cap.set(cv2.CAP_PROP_FPS, int(cam["fps"]))
-    if not cap.isOpened():
-        print("Cannot open webcam.", file=sys.stderr)
+    try:
+        cap = open_frame_source(cfg)
+    except FrameSourceError as e:
+        print(f"Cannot open the camera.\n{e}", file=sys.stderr)
         sys.exit(1)
+    print(f"[ar] source: {cap.describe()}")
 
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 1e-3)
     find_flags = (

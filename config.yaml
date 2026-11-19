@@ -11,14 +11,43 @@ colors:
   z: [0, 0, 255]
 
 camera:
+  # local  : 노트북에 직접 꽂은 USB 웹캠 (SO-101 때 방식)
+  # lekiwi : 라즈베리파이의 lekiwi_host 가 ZMQ 로 뿌리는 영상
+  # url    : MJPEG/RTSP 주소
+  source: lekiwi
+
+  # --- source: lekiwi ---
+  name: front                # host 가 발행하는 카메라 이름. wrist 는 팔에 붙어
+                             # 움직이므로 캘리브레이션에 쓰면 안 된다.
+  # --- source: local ---
   index: 4
   width: 1280
   height: 720
   fps: 30
-  fourcc: MJPG               # 1280x720@30fps requires MJPG on this device
+  fourcc: MJPG               # local 전용. lekiwi 는 host 설정을 따른다.
+
+  # --- source: url ---
+  url: ""
+
+  rotate: 0                  # 화면이 뒤집혀 보일 때만 0/90/180/270
+
+lekiwi:
+  remote_ip: 10.42.0.61      # 랜선 직결. 노트북은 10.42.0.1
+  port_zmq_observations: 5556
+  port_zmq_cmd: 5555
+  connect_timeout_s: 10.0    # 첫 프레임 대기 (host 가 떠 있어야 한다)
+  read_timeout_s: 2.0        # 이후 프레임 하나를 기다리는 최대 시간
+
+  # host 가 보내는 색 채널 순서. lerobot 의 OpenCVCameraConfig 기본값이 RGB 라서,
+  # host 는 RGB 배열을 그대로 cv2.imencode(BGR 가정) 에 넣어 보낸다.
+  # 즉 R 과 B 가 뒤집혀 오므로 클라이언트에서 되돌린다 (보라색이 분홍으로,
+  # 노란색이 파랑으로 보이면 이 값이 틀린 것).
+  host_color_mode: rgb       # rgb | bgr
 
 calib:
-  file: calib/camera_params.npz
+  # LeKiwi 카메라는 노트북 웹캠과 해상도·왜곡이 완전히 다르다.
+  # main 브랜치의 calib/*.npz 를 덮어쓰지 않도록 경로를 분리했다.
+  file: calib/lekiwi/camera_params.npz
   target_shots: 20
 
 # 보드-로봇 매핑
@@ -26,14 +55,26 @@ calib:
 # 외곽 격자 인덱스: i = 0..14 (X 방향), j = 0..10 (Y 방향)
 # 측정 단위는 m
 robot_calib:
-  file: calib/robot_board.npz
-  z_board_m: 0.0804         # 보드 표면 높이 (z=상수 가정)
-  touch_points:
-    - {i: 0,  j: 0, x:  0.2483, y:  0.0833, z: 0.0804}  # 좌하단 외곽 코너
-    - {i: 1,  j: 1, x:  0.2627, y:  0.1072, z: 0.0791}  # 좌하단 흰칸 우상
-    - {i: 1,  j: 4, x:  0.3132, y:  0.1126, z: 0.0788}  # 좌하단에서 위 4번째 검은칸 우상
-    - {i: 13, j: 1, x:  0.2443, y: -0.1167, z: 0.0669}  # 우하단 검은칸 좌상
-    - {i: 13, j: 4, x:  0.3035, y: -0.1105, z: 0.0735}  # 우하단에서 위 4번째 흰칸 좌상
+  file: calib/lekiwi/robot_board.npz
+  z_board_m: 0.0804         # 보드 표면 높이 (z=상수 가정) — LeKiwi 에서 다시 측정할 것
+
+  # LeKiwi 팔로 보드 격자점을 찍어서 다시 채워야 한다.
+  # 아래 SO-101 값은 형식 참고용 주석이며, 그대로 쓰면 결과가 전부 틀린다.
+  #   - {i: 0,  j: 0, x:  0.2483, y:  0.0833, z: 0.0804}  # 좌하단 외곽 코너
+  #   - {i: 1,  j: 1, x:  0.2627, y:  0.1072, z: 0.0791}  # 좌하단 흰칸 우상
+  #   - {i: 1,  j: 4, x:  0.3132, y:  0.1126, z: 0.0788}  # 좌하단에서 위 4번째 검은칸 우상
+  #   - {i: 13, j: 1, x:  0.2443, y: -0.1167, z: 0.0669}  # 우하단 검은칸 좌상
+  #   - {i: 13, j: 4, x:  0.3035, y: -0.1105, z: 0.0735}  # 우하단에서 위 4번째 흰칸 좌상
+  touch_points: []
+
+# YOLO (05.estimate_object_cord.py 전용)
+yolo:
+  # 이 저장소 기준 상대경로. 절대경로(/... 또는 ~/...)도 그대로 받는다.
+  # 환경변수 ROBOSEASY_YOLO_WEIGHTS 를 지정하면 그쪽이 우선한다.
+  weights: weights/best.pt
+  conf: 0.25
+  iou: 0.45
+  device: 0                   # GPU 번호. CPU 로 돌리려면 "cpu"
 
 display:
   label_stride: 1             # 1=모든 점, 2=한 칸 걸러
