@@ -49,6 +49,8 @@
 - **로봇 프레임 R**: LeKiwi 팔의 베이스
 - z축은 두 프레임이 평행하다고 가정 (보드를 바닥/책상 위에 평평히 둠)
 
+[체커보드 다운로드 받기](https://markhedleyjones.com/projects/calibration-checkerboard-collection)
+
 ---
 
 ## 설치

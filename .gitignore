@@ -28,3 +28,6 @@ calib/**/board_index.png
 # OS
 .DS_Store
 Thumbs.db
+
+.omc
+.vscode
